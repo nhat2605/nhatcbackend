@@ -48,4 +48,4 @@ class ImageClassifierView(APIView):
             result = f"This image most likely belongs to {predicted_class} with a {confidence:.2f} percent confidence."
             return Response({'result': result}, status=status.HTTP_200_OK)
         else:
-            return Response(serializer.validated_data['image_url'], status=status.HTTP_400_BAD_REQUEST)           
+            return Response(request.data, status=status.HTTP_400_BAD_REQUEST)           
