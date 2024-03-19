@@ -42,10 +42,12 @@ def classify_image(image_url, model_path, img_height, img_width, class_names):
 class ImageClassifierView(APIView):
     def post(self, request):
         serializer = ImageURLSerializer(data=request.data)
+        print(serializer)
+        print(request.data)
         if serializer.is_valid():
             image_url = serializer.validated_data['image_url']
             predicted_class, confidence = classify_image(image_url, model_path, img_height, img_width, class_names)
             result = f"This image most likely belongs to {predicted_class} with a {confidence:.2f} percent confidence."
             return Response({'result': result}, status=status.HTTP_200_OK)
         else:
-            return Response(request.data, status=status.HTTP_400_BAD_REQUEST)           
+            return Response(serializer.error, status=status.HTTP_400_BAD_REQUEST)           
