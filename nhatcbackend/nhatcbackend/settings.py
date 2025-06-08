@@ -13,6 +13,11 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import sentry_sdk
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,9 +46,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
-    'nhatcbackend',  # Add the app itself
+    'nhatcbackend.apps.NhatcbackendConfig',  # Use proper app config
     'drf_yasg',
-    "corsheaders",  
+    "corsheaders",
 ]
 
 MIDDLEWARE = [
@@ -69,8 +74,8 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
-    "sentry-trace",  # Added sentry-trace
-    "baggage",  # Added baggage
+    "sentry-trace",
+    "baggage",
 ]
 
 ROOT_URLCONF = 'nhatcbackend.urls'
@@ -149,7 +154,39 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+}
+
+# Swagger settings
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'JWT authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+    'JSON_EDITOR': True,
+    'SUPPORTED_SUBMIT_METHODS': [
+        'get',
+        'post',
+        'put',
+        'delete',
+        'patch'
+    ],
+    'OPERATIONS_SORTER': 'alpha',
+    'TAGS_SORTER': 'alpha',
+    'DOC_EXPANSION': 'none',
+    'DEEP_LINKING': True,
+    'SHOW_EXTENSIONS': True,
+    'DEFAULT_MODEL_RENDERING': 'model',
+    'LOGIN_URL': '/api/token/',
+    'LOGOUT_URL': None,
 }
 
 AUTH_USER_MODEL = 'nhatcbackend.User'  # Specify the custom user model
@@ -191,7 +228,31 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
-import sentry_sdk
+# Email Configuration
+import os
+
+# Use environment variables for email credentials (more secure)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'your-gmail@gmail.com')  # Set via environment variable
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'your-app-password')  # Gmail App Password
+
+# For development, uncomment below to use console backend:
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Other SMTP providers (for reference):
+# SendGrid:
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.sendgrid.net'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'apikey'
+# EMAIL_HOST_PASSWORD = 'your-sendgrid-api-key'
+
+DEFAULT_FROM_EMAIL = f'Banking API <{EMAIL_HOST_USER}>'  # Use your Gmail as sender
+EMAIL_SUBJECT_PREFIX = '[Banking API] '
 
 sentry_sdk.init(
     dsn="https://21d8c6aa9740ca2f26b64161adad758d@o4509411009363968.ingest.us.sentry.io/4509416290254848",
