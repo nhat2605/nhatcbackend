@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import User, Account, Transaction
-from .serializers import UserSerializer, AccountSerializer, FundTransferSerializer, TransactionSerializer, PasswordResetSerializer
+from .serializers import UserSerializer, AccountSerializer, FundTransferSerializer, TransactionSerializer, PasswordResetSerializer, AddTransferAccountSerializer, TransferAccountSerializer, TransferAccountListSerializer, UserTransferAccount, ExternalAccountSerializer
 
 # Custom responses for better documentation
 user_response_examples = {
@@ -353,3 +353,174 @@ def password_reset(request):
             {'error': str(e)}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@swagger_auto_schema(
+    method='get',
+    operation_description="""
+    Get all accounts the user can transfer to.
+    
+    This endpoint returns a list of all accounts the user can transfer funds to,
+    including their own accounts and any accounts they've added to their transfer list.
+    
+    **Returns:**
+    - `user_accounts`: All accounts belonging to the authenticated user
+    - `transfer_accounts`: All external accounts the user has added to their transfer list
+    
+    This provides a complete view of all available transfer destinations for the user.
+    """,
+    responses={
+        200: openapi.Response(
+            description="List of transfer accounts retrieved successfully",
+            examples={
+                "application/json": {
+                    "user_accounts": [
+                        {
+                            "id": 1,
+                            "account_number": "12345678",
+                            "account_type": "cheque",
+                            "account_type_display": "Cheque",
+                            "balance": "1000.00"
+                        }
+                    ],
+                    "transfer_accounts": [
+                        {
+                            "id": 1,
+                            "account": {
+                                "id": 2,
+                                "account_number": "87654321",
+                                "account_owner_username": "jane_doe"
+                            },
+                            "account_owner_username": "jane_doe",
+                            "added_at": "2024-01-01T12:00:00Z"
+                        }
+                    ]
+                }
+            }
+        ),
+        401: openapi.Response(
+            description="Authentication required",
+            examples={
+                "application/json": {
+                    "detail": "Authentication credentials were not provided."
+                }
+            }
+        )
+    },
+    tags=['Transfer Accounts']
+)
+@swagger_auto_schema(
+    method='post',
+    operation_description="""
+    Add an account to the user's transfer list.
+    
+    This endpoint allows users to add an external account to their list of accounts
+    they can transfer funds to. The account must exist in the system.
+    
+    **Requirements:**
+    - Account number must be valid and exist in the system
+    - User cannot add their own accounts (they're automatically available)
+    - Duplicate entries are prevented
+    
+    **Process:**
+    1. Validates the account number exists
+    2. Checks the account doesn't belong to the current user
+    3. Adds the account to the user's transfer list
+    4. Returns confirmation
+    """,
+    request_body=AddTransferAccountSerializer,
+    responses={
+        201: openapi.Response(
+            description="Account added to transfer list successfully",
+            examples={
+                "application/json": {
+                    "message": "Account added to transfer list successfully",
+                    "account_number": "87654321",
+                    "account_owner": "jane_doe"
+                }
+            }
+        ),
+        400: openapi.Response(
+            description="Bad request - validation errors or account already in list",
+            examples={
+                "application/json": {
+                    "error": "Account not found"
+                }
+            }
+        ),
+        401: openapi.Response(
+            description="Authentication required",
+            examples={
+                "application/json": {
+                    "detail": "Authentication credentials were not provided."
+                }
+            }
+        )
+    },
+    tags=['Transfer Accounts']
+)
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.IsAuthenticated])
+def transfer_accounts(request):
+    """
+    GET: List all accounts the user can transfer to
+    POST: Add an account to the user's transfer list
+    """
+    if request.method == 'GET':
+        # Get user's own accounts
+        user_accounts = Account.objects.filter(user=request.user)
+        
+        # Get accounts user has added to transfer list
+        transfer_accounts = UserTransferAccount.objects.filter(user=request.user)
+        
+        response_data = {
+            'user_accounts': AccountSerializer(user_accounts, many=True).data,
+            'transfer_accounts': TransferAccountSerializer(transfer_accounts, many=True).data
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    elif request.method == 'POST':
+        serializer = AddTransferAccountSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        account_number = serializer.validated_data['account_number']
+        
+        try:
+            # Get the account to add
+            account = Account.objects.get(account_number=account_number)
+            
+            # Check if user is trying to add their own account
+            if account.user == request.user:
+                return Response(
+                    {'error': 'You cannot add your own account to the transfer list'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Check if account is already in the transfer list
+            if UserTransferAccount.objects.filter(user=request.user, account=account).exists():
+                return Response(
+                    {'error': 'Account is already in your transfer list'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Add account to transfer list
+            UserTransferAccount.objects.create(user=request.user, account=account)
+            
+            return Response({
+                'message': 'Account added to transfer list successfully',
+                'account_number': account_number,
+                'account_owner': account.user.username
+            }, status=status.HTTP_201_CREATED)
+            
+        except Account.DoesNotExist:
+            return Response(
+                {'error': 'Account not found'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to add account: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

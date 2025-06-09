@@ -99,3 +99,18 @@ class Transaction(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+class UserTransferAccount(models.Model):
+    """
+    Model to track accounts a user can transfer to (favorites/trusted accounts)
+    """
+    user = models.ForeignKey(User, related_name='transfer_accounts', on_delete=models.CASCADE)
+    account = models.ForeignKey(Account, related_name='trusted_by_users', on_delete=models.CASCADE)
+    added_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['user', 'account']  # Prevent duplicate entries
+        ordering = ['-added_at']
+    
+    def __str__(self):
+        return f'{self.user.username} can transfer to {self.account.account_number}'

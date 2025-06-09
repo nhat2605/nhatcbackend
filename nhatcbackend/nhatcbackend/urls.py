@@ -23,7 +23,7 @@ from rest_framework_simplejwt.views import (
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
-from .views import UserCreateView, AccountListView, AccountDetailView, TransactionListView, fund_transfer, password_reset
+from .views import UserCreateView, AccountListView, AccountDetailView, TransactionListView, fund_transfer, password_reset, transfer_accounts
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -79,6 +79,7 @@ urlpatterns = [
     path('api/accounts/<int:pk>/', AccountDetailView.as_view(), name='account-detail'),
     path('api/transactions/', TransactionListView.as_view(), name='transaction-list'),
     path('api/transfer/', fund_transfer, name='fund-transfer'),
+    path('api/transfer-accounts/', transfer_accounts, name='transfer-accounts'),
     path('swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),

@@ -3,7 +3,7 @@ from django.db import transaction
 from django.core.mail import send_mail
 from django.conf import settings
 from decimal import Decimal
-from .models import User, Account, Transaction
+from .models import User, Account, Transaction, UserTransferAccount, UserTransferAccount
 
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField(
@@ -176,3 +176,41 @@ class UserSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+
+class AddTransferAccountSerializer(serializers.Serializer):
+    """Serializer for adding an account to user's transfer list"""
+    account_number = serializers.CharField(
+        max_length=8,
+        help_text="8-digit account number to add to transfer list"
+    )
+    
+    def validate_account_number(self, value):
+        """Validate that the account exists"""
+        try:
+            Account.objects.get(account_number=value)
+        except Account.DoesNotExist:
+            raise serializers.ValidationError("Account not found")
+        return value
+
+class ExternalAccountSerializer(serializers.ModelSerializer):
+    """Serializer for external accounts - only shows safe information"""
+    account_owner_username = serializers.CharField(source='user.username', read_only=True)
+    
+    class Meta:
+        model = Account
+        fields = ['id', 'account_number', 'account_owner_username']
+
+class TransferAccountSerializer(serializers.ModelSerializer):
+    """Serializer for displaying transfer accounts"""
+    account = ExternalAccountSerializer(read_only=True)
+    account_owner_username = serializers.CharField(source='account.user.username', read_only=True)
+    
+    class Meta:
+        model = UserTransferAccount
+        fields = ['id', 'account', 'account_owner_username', 'added_at']
+        read_only_fields = ['added_at']
+
+class TransferAccountListSerializer(serializers.Serializer):
+    """Serializer for the complete transfer account list including user's own accounts"""
+    user_accounts = AccountSerializer(many=True, read_only=True)
+    transfer_accounts = TransferAccountSerializer(many=True, read_only=True)
