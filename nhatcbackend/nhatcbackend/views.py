@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.db import transaction, models
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ValidationError
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import User, Account, Transaction
@@ -53,6 +54,12 @@ class AccountListView(generics.ListCreateAPIView):
     POST: Creates a new account for the authenticated user.
     
     Account types available: 'cheque' or 'saving'
+    
+    **Balance Validation:**
+    - Balance cannot be negative
+    - Balance cannot exceed $10,000,000.00
+    - Balance must have exactly 2 decimal places
+    - Savings accounts require minimum $100.00 if setting initial balance
     """
     serializer_class = AccountSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -61,19 +68,37 @@ class AccountListView(generics.ListCreateAPIView):
         return Account.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        try:
+            serializer.save(user=self.request.user)
+        except ValidationError as e:
+            # Convert Django ValidationError to DRF ValidationError
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else str(e))
 
 class AccountDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     Retrieve, update, or delete a specific account.
     
     Users can only access their own accounts.
+    
+    **Balance Validation (for updates):**
+    - Balance cannot be negative
+    - Balance cannot exceed $10,000,000.00
+    - Balance must have exactly 2 decimal places
     """
     serializer_class = AccountSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Account.objects.filter(user=self.request.user)
+    
+    def perform_update(self, serializer):
+        try:
+            serializer.save()
+        except ValidationError as e:
+            # Convert Django ValidationError to DRF ValidationError
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+            raise DRFValidationError(e.message_dict if hasattr(e, 'message_dict') else str(e))
 
 class TransactionListView(generics.ListAPIView):
     """

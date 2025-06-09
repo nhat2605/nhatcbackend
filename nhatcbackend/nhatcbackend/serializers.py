@@ -66,6 +66,38 @@ class AccountSerializer(serializers.ModelSerializer):
         model = Account
         fields = ['id', 'account_number', 'account_type', 'balance']
         read_only_fields = ['account_number']  # Account number is auto-generated
+    
+    def validate_balance(self, value):
+        """Validate balance field"""
+        if value is not None:
+            # Check if balance is negative
+            if value < Decimal('0.00'):
+                raise serializers.ValidationError("Account balance cannot be negative.")
+            
+            # Check maximum balance limit (10 million)
+            if value > Decimal('10000000.00'):
+                raise serializers.ValidationError("Account balance cannot exceed $10,000,000.00.")
+            
+            # Check decimal places (should be exactly 2)
+            if value.as_tuple().exponent < -2:
+                raise serializers.ValidationError("Balance cannot have more than 2 decimal places.")
+        
+        return value
+    
+    def validate(self, attrs):
+        """Additional validation"""
+        # For new accounts, ensure balance is reasonable for the account type
+        if not self.instance:  # Creating a new account
+            balance = attrs.get('balance', Decimal('0.00'))
+            account_type = attrs.get('account_type', 'cheque')
+            
+            # Savings accounts might have minimum balance requirements
+            if account_type == 'saving' and balance > Decimal('0.00') and balance < Decimal('100.00'):
+                raise serializers.ValidationError({
+                    'balance': 'Savings accounts typically require a minimum balance of $100.00.'
+                })
+        
+        return attrs
         
     def to_representation(self, instance):
         data = super().to_representation(instance)

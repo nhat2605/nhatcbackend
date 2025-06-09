@@ -45,6 +45,28 @@ class Account(models.Model):
     account_type = models.CharField(max_length=10, choices=ACCOUNT_TYPES, default='cheque')
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
+    def clean(self):
+        """Validate account data"""
+        super().clean()
+        
+        # Validate balance
+        if self.balance is not None:
+            if self.balance < Decimal('0.00'):
+                raise ValidationError({'balance': 'Account balance cannot be negative.'})
+            
+            # Maximum balance limit (10 million)
+            if self.balance > Decimal('10000000.00'):
+                raise ValidationError({'balance': 'Account balance cannot exceed $10,000,000.00.'})
+            
+            # Check decimal places (should be exactly 2)
+            if self.balance.as_tuple().exponent < -2:
+                raise ValidationError({'balance': 'Balance cannot have more than 2 decimal places.'})
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure validation"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f'{self.user.username} - {self.account_number} ({self.account_type})'
 
